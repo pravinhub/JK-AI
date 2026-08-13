@@ -263,6 +263,7 @@ body {
     transition: border-color 0.2s;
 }
 .chat-model-select:focus { border-color: var(--accent-glow); }
+.chat-model-select option { background: var(--bg-base); color: var(--text-primary); }
 
 .settings-btn, .sidebar-toggle-btn {
     background: transparent;
@@ -456,6 +457,7 @@ body {
     outline: none; font-family: inherit;
 }
 .setting-group select:focus, .setting-group textarea:focus { border-color: var(--accent-glow); }
+.setting-group select option { background: var(--bg-base); color: var(--text-primary); }
 .setting-group textarea { resize: vertical; min-height: 80px; }
 
 .toggle-switch {
