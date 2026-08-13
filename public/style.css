@@ -492,8 +492,39 @@ input[type="checkbox"] { display: none; }
 
 /* Responsive */
 @media (max-width: 768px) {
-    .app-wrapper { border-radius: 0; height: 100vh; max-height: 100vh; }
-    .sidebar { position: absolute; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; }
+    .app-wrapper { 
+        border-radius: 0; 
+        height: 100dvh; 
+        max-height: 100dvh; 
+        border: none;
+    }
+    .sidebar { 
+        position: absolute; 
+        z-index: 50; 
+        height: 100%; 
+        transform: translateX(-100%); 
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    }
     .sidebar.open { transform: translateX(0); }
-    .message { max-width: 90%; }
+    
+    .chat-header { padding: 12px 16px; }
+    .header-info h1 { font-size: 1.1rem; }
+    .status-indicator { display: none; } /* Hide on very small screens to save space */
+    
+    .chat-model-select { padding: 6px 8px; font-size: 0.75rem; max-width: 120px; }
+    
+    .messages-container { padding: 16px; gap: 20px; }
+    .message { max-width: 95%; gap: 10px; }
+    
+    .input-container { padding: 12px 16px; }
+    .input-wrapper { padding: 6px 6px 6px 12px; }
+    #input { font-size: 0.9rem; padding: 10px 4px; }
+    .send-btn { width: 38px; height: 38px; border-radius: 12px; }
+    
+    .modal-content { padding: 24px; }
+}
+
+@media (max-width: 400px) {
+    .chat-model-select { display: none; } /* Hide on extremely narrow screens, user can still use settings modal */
 }
