@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JK AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="app-wrapper">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="createNewChat()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    New Chat
+                </button>
+            </div>
+            <div class="conversations-list" id="convList">
+                <!-- Conversations injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Chat -->
+        <section class="chat-container">
+            <header class="chat-header">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle Sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                    <div class="header-info">
+                        <h1 id="headerTitle">JK AI</h1>
+                        <div class="status-indicator">
+                            <span class="status-dot"></span>
+                            Online
+                        </div>
+                    </div>
+                </div>
+                <button class="settings-btn" aria-label="Settings" onclick="openSettings()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </header>
+            
+            <div id="messages" class="messages-container">
+                <!-- Messages render here -->
+            </div>
+
+            <div class="input-container">
+                <div id="imagePreviewContainer" class="image-preview-container hidden">
+                    <img id="imagePreview" src="" alt="Preview"/>
+                    <button id="removeImageBtn" class="remove-image-btn" aria-label="Remove">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                
+                <input type="file" id="imageInput" accept="image/*" hidden />
+                
+                <div class="input-wrapper">
+                    <button id="uploadBtn" class="icon-btn" aria-label="Upload Image">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </button>
+                    <input type="text" id="input" placeholder="Ask JK AI anything..." autocomplete="off"/>
+                    <button id="sendBtn" class="send-btn" aria-label="Send" onclick="sendMessage()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-modal-btn" onclick="closeSettings()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            
+            <div class="setting-group">
+                <label>Theme</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                    <div class="switch"></div>
+                    <span id="themeLabel">Dark Mode</span>
+                </label>
+            </div>
+
+            <div class="setting-group">
+                <label>AI Model</label>
+                <select id="modelSelect">
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Fast, Versatile)</option>
+                    <option value="mixtral-8x7b-32768">Mixtral 8x7B (Balanced)</option>
+                    <option value="gemma2-9b-it">Gemma 2 9B (Lightweight)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>System Prompt (Personality)</label>
+                <textarea id="systemPromptInput">You are JK AI, a smart multimodal AI assistant.&#10;You remember previous conversations and uploaded images.&#10;Be conversational, helpful, and concise.</textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="applySettings()">Apply Settings & New Chat</button>
+                <button class="btn btn-outline" onclick="exportConversation()">Export Current Conversation</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
