@@ -3,15 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
 import OpenAI from "openai";
-import fs from "fs/promises";
-import path from "path";
-import crypto from "crypto";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(process.cwd(), "conversations.json");
 
 /* ================================================= */
 /* MIDDLEWARE                                        */
@@ -19,44 +15,6 @@ const DB_FILE = path.join(process.cwd(), "conversations.json");
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
-
-/* ================================================= */
-/* DB UTILS                                          */
-/* ================================================= */
-
-const defaultSystemPrompt = `
-You are JK AI, a smart multimodal AI assistant.
-You remember previous conversations and uploaded images.
-Be conversational, helpful, and concise.
-`;
-
-async function getDB() {
-    try {
-        const data = await fs.readFile(DB_FILE, 'utf-8');
-        return JSON.parse(data);
-    } catch (e) {
-        // If file doesn't exist, return empty object
-        return {};
-    }
-}
-
-async function saveDB(data) {
-    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
-}
-
-function createNewConversation(systemPrompt = defaultSystemPrompt) {
-    return {
-        title: "New Conversation",
-        createdAt: Date.now(),
-        systemPrompt: systemPrompt,
-        messages: [
-            {
-                role: "system",
-                content: systemPrompt,
-            }
-        ]
-    };
-}
 
 /* ================================================= */
 /* FILE UPLOAD                                       */
@@ -128,149 +86,54 @@ async function analyzeImage(base64Image, mimeType, userPrompt) {
 }
 
 /* ================================================= */
-/* CONVERSATION ENDPOINTS                            */
-/* ================================================= */
-
-// List all conversations
-app.get("/api/conversations", async (req, res) => {
-    try {
-        const db = await getDB();
-        const list = Object.keys(db).map(id => ({
-            id,
-            title: db[id].title,
-            createdAt: db[id].createdAt
-        })).sort((a, b) => b.createdAt - a.createdAt); // newest first
-        res.json(list);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Get a specific conversation
-app.get("/api/conversations/:id", async (req, res) => {
-    try {
-        const db = await getDB();
-        const conv = db[req.params.id];
-        if (!conv) {
-            return res.status(404).json({ error: "Conversation not found" });
-        }
-        res.json(conv);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Create new conversation
-app.post("/api/conversations", async (req, res) => {
-    try {
-        const db = await getDB();
-        const id = crypto.randomUUID();
-        const { systemPrompt } = req.body;
-        db[id] = createNewConversation(systemPrompt || defaultSystemPrompt);
-        await saveDB(db);
-        res.json({ id, ...db[id] });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Delete a conversation
-app.delete("/api/conversations/:id", async (req, res) => {
-    try {
-        const db = await getDB();
-        if (db[req.params.id]) {
-            delete db[req.params.id];
-            await saveDB(db);
-        }
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-/* ================================================= */
-/* CHAT ROUTE                                        */
+/* STATELESS CHAT ROUTE                              */
 /* ================================================= */
 app.post("/chat", upload.single("image"), async (req, res) => {
     try {
-        const userMessage = req.body.message || "";
-        const conversationId = req.body.conversationId;
+        // Parse messages from stringified JSON if sent via FormData
+        let messages = [];
+        try {
+            messages = JSON.parse(req.body.messages || "[]");
+        } catch (e) {
+            return res.status(400).json({ error: "Invalid messages format" });
+        }
+
         const requestedModel = req.body.model || "llama-3.3-70b-versatile";
         const image = req.file;
 
-        if (!conversationId) {
-            return res.status(400).json({ error: "Missing conversationId" });
+        if (!messages || messages.length === 0) {
+            return res.status(400).json({ error: "No messages provided" });
         }
 
-        const db = await getDB();
-        let conv = db[conversationId];
-
-        if (!conv) {
-            // Auto create if missing
-            conv = createNewConversation();
-            db[conversationId] = conv;
-        }
-
-        // Generate title if it's "New Conversation" and we have a message
-        if (conv.title === "New Conversation" && userMessage) {
-            conv.title = userMessage.substring(0, 30) + (userMessage.length > 30 ? "..." : "");
-        }
+        // Get the latest user message text for image analysis context
+        const lastUserMessage = messages[messages.length - 1];
+        const userText = lastUserMessage.role === 'user' ? lastUserMessage.content : "";
 
         if (image) {
             const base64Image = image.buffer.toString("base64");
             const imageAnalysis = await analyzeImage(
                 base64Image,
                 image.mimetype,
-                `Analyze this image carefully.\nUser request:\n${userMessage}\nDescribe appearance, clothing, colors, environment, text, and important details.`
+                `Analyze this image carefully.\nUser request:\n${userText}\nDescribe appearance, clothing, colors, environment, text, and important details.`
             );
 
-            conv.messages.push({
-                role: "user",
-                content: `[Uploaded an image]\nQuestion: ${userMessage}`,
-            });
-            conv.messages.push({
+            // We inject the image analysis as a temporary system message before sending to the main LLM
+            messages.splice(messages.length - 1, 0, {
                 role: "system",
-                content: `IMAGE ANALYSIS:\n${imageAnalysis}\nUse this naturally in responses.`,
+                content: `IMAGE ANALYSIS for the latest user message:\n${imageAnalysis}\nUse this naturally in your response.`
             });
-            
-            // Generate final response using main model
-            const completion = await groq.chat.completions.create({
-                model: requestedModel,
-                messages: [
-                    ...conv.messages,
-                    {
-                        role: "user",
-                        content: `Based on image analysis:\n${imageAnalysis}\nAnswer: ${userMessage}`
-                    }
-                ],
-            });
-            
-            const finalReply = completion.choices[0].message.content;
-            conv.messages.push({ role: "assistant", content: finalReply });
-
-        } else {
-            conv.messages.push({ role: "user", content: userMessage });
-            const completion = await groq.chat.completions.create({
-                model: requestedModel,
-                messages: conv.messages,
-            });
-            const reply = completion.choices[0].message.content;
-            conv.messages.push({ role: "assistant", content: reply });
         }
 
-        // Keep last 30 messages to avoid context limit overflow
-        if (conv.messages.length > 30) {
-            conv.messages = [
-                conv.messages[0], // Keep system prompt
-                ...conv.messages.slice(-29)
-            ];
-        }
-
-        await saveDB(db);
+        // Generate response using main model
+        const completion = await groq.chat.completions.create({
+            model: requestedModel,
+            messages: messages,
+        });
         
-        // Return latest assistant message and title
-        const lastMessage = conv.messages[conv.messages.length - 1].content;
-        res.json({ reply: lastMessage, title: conv.title });
+        const finalReply = completion.choices[0].message.content;
+        
+        // Return only the reply, frontend will append it to its own history
+        res.json({ reply: finalReply });
 
     } catch (error) {
         console.log("FULL ERROR:");
@@ -300,5 +163,5 @@ app.use((error, req, res, next) => {
 /* SERVER START                                      */
 /* ================================================= */
 app.listen(PORT, () => {
-    console.log(`JK AI Server running on port ${PORT}`);
+    console.log(`JK AI Stateless Server running on port ${PORT}`);
 });

@@ -14,11 +14,15 @@ const headerTitle = document.getElementById("headerTitle");
 const settingsModal = document.getElementById("settingsModal");
 const themeToggle = document.getElementById("themeToggle");
 const themeLabel = document.getElementById("themeLabel");
-const modelSelect = document.getElementById("modelSelect");
+const defaultModelSelect = document.getElementById("defaultModelSelect");
+const chatModelSelect = document.getElementById("chatModelSelect");
 const systemPromptInput = document.getElementById("systemPromptInput");
 
 let currentImageBase64 = null;
-let currentConversationId = null;
+
+// --- STATE MANAGEMENT ---
+let conversations = JSON.parse(localStorage.getItem("jk_ai_conversations") || "{}");
+let currentConversationId = localStorage.getItem("jk_ai_current_conversation") || null;
 
 const AI_AVATAR = `
 <div class="avatar ai-avatar">
@@ -30,6 +34,19 @@ const USER_AVATAR = `
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
 </div>`;
 
+function saveState() {
+    localStorage.setItem("jk_ai_conversations", JSON.stringify(conversations));
+    if (currentConversationId) {
+        localStorage.setItem("jk_ai_current_conversation", currentConversationId);
+    } else {
+        localStorage.removeItem("jk_ai_current_conversation");
+    }
+}
+
+function generateId() {
+    return 'chat_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
 // --- UI HELPERS ---
 function addMessage(text, role, imageSrc = null) {
     if(role === 'system') return; // Hide system prompts in UI
@@ -40,11 +57,9 @@ function addMessage(text, role, imageSrc = null) {
     
     let contentHtml = '';
     if (imageSrc && isUser) {
-        // If image attached in user message
         contentHtml += `<img src="${imageSrc}" class="message-image" alt="Uploaded image" />`;
     }
     if (text) {
-        // Filter out the [Uploaded an image] tag prefix for UI cleanliness if it exists
         let cleanText = text;
         if(text.includes("[Uploaded an image]")) {
             cleanText = text.replace(/\[Uploaded an image\]\nQuestion:\s*/, "");
@@ -92,22 +107,37 @@ function clearImagePreview() {
 }
 
 // --- CONVERSATION MANAGEMENT ---
+function initApp() {
+    // Load theme
+    const savedTheme = localStorage.getItem("jk_ai_theme") || "dark";
+    if (savedTheme === "light") {
+        themeToggle.checked = true;
+        document.body.setAttribute('data-theme', 'light');
+        themeLabel.textContent = "Light Mode";
+    }
 
-async function fetchConversations() {
-    try {
-        const res = await fetch("/api/conversations");
-        const list = await res.json();
-        renderSidebar(list);
-        if(list.length > 0 && !currentConversationId) {
-            loadConversation(list[0].id);
-        } else if (list.length === 0) {
+    // Load default model
+    const defaultModel = localStorage.getItem("jk_ai_default_model") || "llama-3.3-70b-versatile";
+    defaultModelSelect.value = defaultModel;
+
+    renderSidebar();
+    
+    if (currentConversationId && conversations[currentConversationId]) {
+        loadConversation(currentConversationId);
+    } else {
+        const keys = Object.keys(conversations);
+        if (keys.length > 0) {
+            loadConversation(keys[0]);
+        } else {
             createNewChat();
         }
-    } catch(e) { console.error("Failed to load conversations", e); }
+    }
 }
 
-function renderSidebar(list) {
+function renderSidebar() {
     convList.innerHTML = "";
+    const list = Object.values(conversations).sort((a, b) => b.createdAt - a.createdAt);
+    
     list.forEach(conv => {
         const div = document.createElement("div");
         div.className = `conv-item ${conv.id === currentConversationId ? 'active' : ''}`;
@@ -123,68 +153,114 @@ function renderSidebar(list) {
     });
 }
 
-async function loadConversation(id) {
-    try {
-        const res = await fetch(`/api/conversations/${id}`);
-        const conv = await res.json();
-        currentConversationId = id;
-        headerTitle.textContent = conv.title;
-        
-        messagesContainer.innerHTML = "";
-        conv.messages.forEach(msg => addMessage(msg.content, msg.role));
-        
-        // Update sidebar active state
-        document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
-        // Re-fetch to update sidebar
-        fetchConversations();
-        
-        if(window.innerWidth <= 768) toggleSidebar();
-    } catch(e) { console.error(e); }
+function loadConversation(id) {
+    if (!conversations[id]) return;
+    currentConversationId = id;
+    const conv = conversations[id];
+    
+    headerTitle.textContent = conv.title;
+    chatModelSelect.value = conv.model;
+    
+    messagesContainer.innerHTML = "";
+    conv.messages.forEach(msg => {
+        // Simple extraction hack for image base64 if we want to show it in UI 
+        // (normally you'd save it separately, but for brevity we'll just let UI render text)
+        addMessage(msg.content, msg.role, msg.imageSrc); 
+    });
+    
+    saveState();
+    renderSidebar();
+    
+    if(window.innerWidth <= 768) sidebar.classList.remove('open');
 }
 
-async function createNewChat(systemPromptOverride) {
-    try {
-        const res = await fetch("/api/conversations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                systemPrompt: systemPromptOverride || systemPromptInput.value
-            })
-        });
-        const conv = await res.json();
-        loadConversation(conv.id);
-    } catch(e) { console.error(e); }
+function createNewChat(systemPromptOverride) {
+    const defaultModel = localStorage.getItem("jk_ai_default_model") || "llama-3.3-70b-versatile";
+    const prompt = systemPromptOverride || systemPromptInput.value || "You are JK AI, a smart multimodal AI assistant. Be conversational, helpful, and concise.";
+    
+    const id = generateId();
+    conversations[id] = {
+        id: id,
+        title: "New Conversation",
+        createdAt: Date.now(),
+        model: defaultModel,
+        messages: [
+            { role: "system", content: prompt }
+        ]
+    };
+    
+    currentConversationId = id;
+    saveState();
+    loadConversation(id);
 }
 
-async function deleteConversation(id, event) {
+function deleteConversation(id, event) {
     event.stopPropagation();
-    try {
-        await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-        if(currentConversationId === id) {
-            currentConversationId = null;
-            messagesContainer.innerHTML = "";
-            headerTitle.textContent = "JK AI";
-        }
-        fetchConversations();
-    } catch(e) { console.error(e); }
+    delete conversations[id];
+    
+    if(currentConversationId === id) {
+        currentConversationId = null;
+        messagesContainer.innerHTML = "";
+        headerTitle.textContent = "JK AI";
+    }
+    saveState();
+    
+    const keys = Object.keys(conversations);
+    if(keys.length > 0 && !currentConversationId) {
+        loadConversation(keys[0]);
+    } else if (keys.length === 0) {
+        createNewChat();
+    } else {
+        renderSidebar();
+    }
+}
+
+// Update the model for the current chat when header dropdown changes
+function updateChatModel() {
+    if (currentConversationId && conversations[currentConversationId]) {
+        conversations[currentConversationId].model = chatModelSelect.value;
+        saveState();
+    }
 }
 
 // --- SEND MESSAGE ---
-
 async function sendMessage() {
     const userText = input.value.trim();
     const file = imageInput.files[0];
 
     if (!userText && !file) return;
-    if (!currentConversationId) await createNewChat();
+    if (!currentConversationId || !conversations[currentConversationId]) {
+        createNewChat();
+    }
+
+    const conv = conversations[currentConversationId];
+
+    // Build the payload message
+    let payloadText = userText;
+    if (file && userText) {
+        payloadText = `[Uploaded an image]\nQuestion: ${userText}`;
+    } else if (file) {
+        payloadText = `[Uploaded an image]`;
+    }
+
+    // Save to local state
+    const userMessage = { role: 'user', content: payloadText, imageSrc: currentImageBase64 };
+    conv.messages.push(userMessage);
+
+    // If it's a new conversation, update title
+    if (conv.title === "New Conversation" && userText) {
+        conv.title = userText.substring(0, 30) + (userText.length > 30 ? "..." : "");
+    }
+    
+    saveState();
+    renderSidebar();
 
     addMessage(userText || "[Image attached]", 'user', currentImageBase64);
     input.value = "";
     
     const formData = new FormData();
-    formData.append("message", userText);
-    formData.append("conversationId", currentConversationId);
-    formData.append("model", modelSelect.value);
+    formData.append("messages", JSON.stringify(conv.messages));
+    formData.append("model", conv.model);
     
     if (file) formData.append("image", file);
 
@@ -202,9 +278,15 @@ async function sendMessage() {
         removeTyping();
         
         if (data.reply) {
+            conv.messages.push({ role: "assistant", content: data.reply });
+            
+            // Limit memory array size to 30 to prevent payload too large
+            if (conv.messages.length > 30) {
+                conv.messages = [conv.messages[0], ...conv.messages.slice(-29)];
+            }
+            saveState();
+
             addMessage(data.reply, 'assistant');
-            headerTitle.textContent = data.title;
-            fetchConversations(); // update sidebar title if it changed
         } else if (data.error) {
             addMessage(`Error: ${data.error}`, 'assistant');
         }
@@ -220,7 +302,6 @@ async function sendMessage() {
 }
 
 // --- EVENT LISTENERS ---
-
 input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
         event.preventDefault();
@@ -248,52 +329,57 @@ imageInput.addEventListener("change", (e) => {
 });
 
 // --- SETTINGS & SIDEBAR ---
-
-function toggleSidebar() {
-    sidebar.classList.toggle('open');
-}
-
-function openSettings() {
-    settingsModal.classList.add('active');
-}
-function closeSettings() {
-    settingsModal.classList.remove('active');
-}
+function toggleSidebar() { sidebar.classList.toggle('open'); }
+function openSettings() { settingsModal.classList.add('active'); }
+function closeSettings() { settingsModal.classList.remove('active'); }
 
 function toggleTheme() {
     if(themeToggle.checked) {
         document.body.setAttribute('data-theme', 'light');
         themeLabel.textContent = "Light Mode";
+        localStorage.setItem("jk_ai_theme", "light");
     } else {
         document.body.setAttribute('data-theme', 'dark');
         themeLabel.textContent = "Dark Mode";
+        localStorage.setItem("jk_ai_theme", "dark");
     }
 }
 
+function updateDefaultModel() {
+    localStorage.setItem("jk_ai_default_model", defaultModelSelect.value);
+}
+
 function applySettings() {
+    updateDefaultModel();
     closeSettings();
     createNewChat(systemPromptInput.value);
 }
 
-async function exportConversation() {
-    if(!currentConversationId) return alert("No active conversation to export.");
-    try {
-        const res = await fetch(`/api/conversations/${currentConversationId}`);
-        const conv = await res.json();
-        
-        let transcript = `Conversation: ${conv.title}\nDate: ${new Date(conv.createdAt).toLocaleString()}\n\n`;
-        conv.messages.forEach(msg => {
-            if(msg.role === 'system') return;
-            transcript += `[${msg.role.toUpperCase()}]: ${msg.content}\n\n`;
-        });
-        
-        const blob = new Blob([transcript], { type: 'text/plain' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${conv.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.txt`;
-        a.click();
-    } catch(e) { console.error("Export failed", e); }
+function exportConversation() {
+    if(!currentConversationId || !conversations[currentConversationId]) return alert("No active conversation to export.");
+    const conv = conversations[currentConversationId];
+    
+    let transcript = `Conversation: ${conv.title}\nDate: ${new Date(conv.createdAt).toLocaleString()}\nModel: ${conv.model}\n\n`;
+    conv.messages.forEach(msg => {
+        if(msg.role === 'system') return;
+        transcript += `[${msg.role.toUpperCase()}]: ${msg.content}\n\n`;
+    });
+    
+    const blob = new Blob([transcript], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${conv.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.txt`;
+    a.click();
+}
+
+function clearAllData() {
+    if(confirm("Are you sure you want to delete all local conversation history and settings? This cannot be undone.")) {
+        localStorage.clear();
+        conversations = {};
+        currentConversationId = null;
+        window.location.reload();
+    }
 }
 
 // Init
-fetchConversations();
+initApp();

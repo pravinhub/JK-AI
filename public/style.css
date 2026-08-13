@@ -249,6 +249,21 @@ body {
     box-shadow: 0 0 10px #10b981;
 }
 
+/* Chat Header Model Selector */
+.chat-model-select {
+    background: var(--hover-bg); 
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary); 
+    border-radius: 10px; 
+    padding: 6px 12px; 
+    font-size: 0.85rem;
+    outline: none; 
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.chat-model-select:focus { border-color: var(--accent-glow); }
+
 .settings-btn, .sidebar-toggle-btn {
     background: transparent;
     border: none;
@@ -470,6 +485,8 @@ input[type="checkbox"] { display: none; }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-outline { background: transparent; border: 1px solid var(--border-medium); color: var(--text-primary); }
 .btn-outline:hover { background: var(--hover-bg); }
+.btn-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+.btn-danger:hover { background: #ef4444; color: white; }
 
 /* Responsive */
 @media (max-width: 768px) {
