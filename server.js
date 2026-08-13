@@ -124,10 +124,16 @@ app.post("/chat", upload.single("image"), async (req, res) => {
             });
         }
 
+        // Clean messages to remove frontend-specific properties like imageSrc
+        const cleanMessages = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+        }));
+
         // Generate response using main model
         const completion = await groq.chat.completions.create({
             model: requestedModel,
-            messages: messages,
+            messages: cleanMessages,
         });
         
         const finalReply = completion.choices[0].message.content;
