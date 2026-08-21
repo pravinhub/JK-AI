@@ -117,7 +117,7 @@ function initApp() {
     }
 
     // Load default model
-    const defaultModel = localStorage.getItem("jk_ai_default_model") || "llama-3.3-70b-versatile";
+    const defaultModel = localStorage.getItem("jk_ai_default_model") || "openai/gpt-oss-120b";
     defaultModelSelect.value = defaultModel;
 
     renderSidebar();
@@ -175,7 +175,7 @@ function loadConversation(id) {
 }
 
 function createNewChat(systemPromptOverride) {
-    const defaultModel = localStorage.getItem("jk_ai_default_model") || "llama-3.3-70b-versatile";
+    const defaultModel = localStorage.getItem("jk_ai_default_model") || "openai/gpt-oss-120b";
     const prompt = systemPromptOverride || systemPromptInput.value || "You are JK AI, a smart multimodal AI assistant. Be conversational, helpful, and concise.";
     
     const id = generateId();

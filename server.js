@@ -98,7 +98,7 @@ app.post("/chat", upload.single("image"), async (req, res) => {
             return res.status(400).json({ error: "Invalid messages format" });
         }
 
-        const requestedModel = req.body.model || "llama-3.3-70b-versatile";
+        const requestedModel = req.body.model || "openai/gpt-oss-120b";
         const image = req.file;
 
         if (!messages || messages.length === 0) {
