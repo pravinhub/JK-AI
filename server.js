@@ -39,9 +39,33 @@ const groq = new OpenAI({
 });
 
 /* ================================================= */
-/* OPENROUTER IMAGE ANALYSIS                         */
+/* IMAGE ANALYSIS (Groq -> OpenRouter Fallback)      */
 /* ================================================= */
 async function analyzeImage(base64Image, mimeType, userPrompt) {
+    // 1. First try Groq's Qwen model (Cheaper, native)
+    try {
+        console.log(`Trying Groq vision model: qwen/qwen3.6-27b`);
+        const completion = await groq.chat.completions.create({
+            model: "qwen/qwen3.6-27b",
+            messages: [
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: userPrompt },
+                        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+                    ]
+                }
+            ],
+        });
+        if (completion.choices && completion.choices[0]) {
+            return completion.choices[0].message.content;
+        }
+    } catch (error) {
+        console.log(`Groq vision model failed. Falling back to OpenRouter...`);
+        console.log(error.message);
+    }
+
+    // 2. Fallback to OpenRouter
     const visionModels = [
         "meta-llama/llama-4-maverick",
         "google/gemma-3-27b-it",
@@ -51,7 +75,7 @@ async function analyzeImage(base64Image, mimeType, userPrompt) {
 
     for (const model of visionModels) {
         try {
-            console.log(`Trying vision model: ${model}`);
+            console.log(`Trying OpenRouter vision model: ${model}`);
             const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
@@ -79,7 +103,7 @@ async function analyzeImage(base64Image, mimeType, userPrompt) {
             }
         } catch (error) {
             console.log(`Model failed: ${model}`);
-            console.log(error);
+            console.log(error.message);
         }
     }
     return `Image analysis failed.`;
